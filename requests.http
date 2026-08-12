@@ -15,7 +15,7 @@ Content-Type: application/json
 
 {
   "user_id": "{{userId}}",
-  "ingredient_id": "PASTE_INGREDIENT_ID_HERE",
+  "ingredient_id": "2d87f13e-7911-4f52-9405-20a2a5523d48",
   "quantity": 6,
   "unit": "each",
   "storage_location": "pantry"
@@ -26,4 +26,4 @@ GET {{baseUrl}}/api/pantry/items?user_id={{userId}}
 
 ### Delete a pantry item
 # Copy an item "id" from the list response above
-DELETE {{baseUrl}}/api/pantry/items/PASTE_ITEM_ID_HERE?user_id={{userId}}
+DELETE {{baseUrl}}/api/pantry/items/2d87f13e-7911-4f52-9405-20a2a5523d48?user_id={{userId}}
