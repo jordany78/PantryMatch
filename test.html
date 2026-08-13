@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>PantryMatch — Local API Test</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; margin-top: 2.5rem; border-bottom: 1px solid #ddd; padding-bottom: 6px; }
+  label { display: block; font-size: 0.85rem; margin-top: 10px; color: #444; }
+  input, select { width: 100%; padding: 6px 8px; margin-top: 3px; box-sizing: border-box; font-size: 0.95rem; }
+  button { margin-top: 12px; padding: 8px 14px; cursor: pointer; }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+  ul { padding-left: 0; list-style: none; }
+  li { padding: 8px; border: 1px solid #eee; border-radius: 6px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .muted { color: #888; font-size: 0.85rem; }
+  .status { font-size: 0.85rem; margin-top: 8px; }
+  .status.error { color: #c0392b; }
+  .status.ok { color: #2f9e44; }
+  .pick { cursor: pointer; }
+  .pick:hover { background: #f5f5f5; }
+</style>
+</head>
+<body>
+
+<h1>PantryMatch — Local API Test</h1>
+<p class="muted">Talks to your API at <code>http://localhost:4000</code>. Run <code>npm run dev</code> first.</p>
+
+<label for="baseUrl">API base URL</label>
+<input id="baseUrl" value="http://localhost:4000" />
+
+<label for="userId">User ID (get this from Supabase → Authentication → Users)</label>
+<input id="userId" placeholder="paste a real user UUID here" />
+
+<h2>1. Search ingredients</h2>
+<input id="searchQuery" placeholder="e.g. banana" />
+<button onclick="searchIngredients()">Search</button>
+<div id="searchStatus" class="status"></div>
+<ul id="searchResults"></ul>
+
+<h2>2. Add to pantry</h2>
+<p class="muted">Click a search result above to fill in the ingredient, or paste an ingredient ID directly.</p>
+<div class="row">
+  <div>
+    <label>Ingredient ID</label>
+    <input id="ingredientId" />
+  </div>
+  <div>
+    <label>Ingredient name</label>
+    <input id="ingredientName" disabled />
+  </div>
+</div>
+<div class="row">
+  <div>
+    <label>Quantity</label>
+    <input id="quantity" type="number" value="1" />
+  </div>
+  <div>
+    <label>Unit</label>
+    <input id="unit" value="each" />
+  </div>
+  <div>
+    <label>Storage location</label>
+    <select id="storageLocation">
+      <option value="pantry">pantry</option>
+      <option value="fridge">fridge</option>
+      <option value="freezer">freezer</option>
+    </select>
+  </div>
+</div>
+<button onclick="addItem()">Add to pantry</button>
+<div id="addStatus" class="status"></div>
+
+<h2>3. Current pantry</h2>
+<button onclick="listItems()">Refresh list</button>
+<div id="listStatus" class="status"></div>
+<ul id="pantryList"></ul>
+
+<script>
+function base() { return document.getElementById('baseUrl').value.replace(/\/$/, ''); }
+function userId() { return document.getElementById('userId').value.trim(); }
+
+function setStatus(id, msg, ok) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status ' + (ok ? 'ok' : 'error');
+}
+
+async function searchIngredients() {
+  const q = document.getElementById('searchQuery').value.trim();
+  const resultsEl = document.getElementById('searchResults');
+  resultsEl.innerHTML = '';
+  if (!q) return;
+
+  try {
+    const res = await fetch(`${base()}/api/ingredients/search?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    if (!res.ok) { setStatus('searchStatus', JSON.stringify(data), false); return; }
+
+    setStatus('searchStatus', `${data.ingredients.length} result(s)`, true);
+    data.ingredients.forEach(ing => {
+      const li = document.createElement('li');
+      li.className = 'pick';
+      li.innerHTML = `<span>${ing.name} <span class="muted">(${ing.category ?? 'uncategorized'})</span></span>`;
+      li.onclick = () => {
+        document.getElementById('ingredientId').value = ing.id;
+        document.getElementById('ingredientName').value = ing.name;
+        if (ing.default_unit) document.getElementById('unit').value = ing.default_unit;
+      };
+      resultsEl.appendChild(li);
+    });
+  } catch (err) {
+    setStatus('searchStatus', 'Request failed: ' + err.message, false);
+  }
+}
+
+async function addItem() {
+  if (!userId()) { setStatus('addStatus', 'Enter a User ID above first', false); return; }
+  const ingredientId = document.getElementById('ingredientId').value.trim();
+  if (!ingredientId) { setStatus('addStatus', 'Pick an ingredient from search results first', false); return; }
+
+  const body = {
+    user_id: userId(),
+    ingredient_id: ingredientId,
+    quantity: Number(document.getElementById('quantity').value),
+    unit: document.getElementById('unit').value,
+    storage_location: document.getElementById('storageLocation').value,
+  };
+
+  try {
+    const res = await fetch(`${base()}/api/pantry/items`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { setStatus('addStatus', JSON.stringify(data), false); return; }
+    setStatus('addStatus', 'Added successfully', true);
+    listItems();
+  } catch (err) {
+    setStatus('addStatus', 'Request failed: ' + err.message, false);
+  }
+}
+
+async function listItems() {
+  if (!userId()) { setStatus('listStatus', 'Enter a User ID above first', false); return; }
+  const listEl = document.getElementById('pantryList');
+  listEl.innerHTML = '';
+
+  try {
+    const res = await fetch(`${base()}/api/pantry/items?user_id=${encodeURIComponent(userId())}`);
+    const data = await res.json();
+    if (!res.ok) { setStatus('listStatus', JSON.stringify(data), false); return; }
+
+    setStatus('listStatus', `${data.items.length} item(s)`, true);
+    data.items.forEach(item => {
+      const li = document.createElement('li');
+      const name = item.ingredients?.name ?? item.ingredient_id;
+      li.innerHTML = `<span>${name} — ${item.quantity} ${item.unit} <span class="muted">(${item.storage_location})</span></span>`;
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'Delete';
+      delBtn.onclick = () => deleteItem(item.id);
+      li.appendChild(delBtn);
+      listEl.appendChild(li);
+    });
+  } catch (err) {
+    setStatus('listStatus', 'Request failed: ' + err.message, false);
+  }
+}
+
+async function deleteItem(id) {
+  try {
+    const res = await fetch(`${base()}/api/pantry/items/${id}?user_id=${encodeURIComponent(userId())}`, {
+      method: 'DELETE',
+    });
+    const data = await res.json();
+    if (!res.ok) { setStatus('listStatus', JSON.stringify(data), false); return; }
+    listItems();
+  } catch (err) {
+    setStatus('listStatus', 'Request failed: ' + err.message, false);
+  }
+}
+</script>
+
+</body>
+</html>
