@@ -20,6 +20,12 @@
   .status.ok { color: #2f9e44; }
   .pick { cursor: pointer; }
   .pick:hover { background: #f5f5f5; }
+  .line-item { border: 1px solid #eee; border-radius: 6px; padding: 10px; margin-bottom: 8px; }
+  .line-item .top { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
+  .line-item .fields { display: flex; gap: 8px; margin-top: 8px; }
+  .line-item .fields input, .line-item .fields select { padding: 4px 6px; font-size: 0.85rem; }
+  .line-item .fields label { font-size: 0.75rem; margin-top: 0; }
+  .low-confidence { border-color: #f59f00; }
 </style>
 </head>
 <body>
@@ -76,6 +82,19 @@
 <button onclick="listItems()">Refresh list</button>
 <div id="listStatus" class="status"></div>
 <ul id="pantryList"></ul>
+
+<h2>4. Upload a receipt</h2>
+<input id="receiptFile" type="file" accept="image/*" />
+<button onclick="uploadReceipt()">Upload & run OCR</button>
+<div id="uploadStatus" class="status"></div>
+
+<h2>5. Review a receipt</h2>
+<label for="receiptId">Receipt ID</label>
+<input id="receiptId" placeholder="filled in automatically after upload, or paste one" />
+<button onclick="loadReceipt()">Load line items</button>
+<div id="reviewStatus" class="status"></div>
+<div id="lineItems"></div>
+<button id="submitReviewBtn" style="display:none" onclick="submitReview()">Submit review</button>
 
 <script>
 function base() { return document.getElementById('baseUrl').value.replace(/\/$/, ''); }
@@ -179,6 +198,119 @@ async function deleteItem(id) {
     listItems();
   } catch (err) {
     setStatus('listStatus', 'Request failed: ' + err.message, false);
+  }
+}
+
+async function uploadReceipt() {
+  if (!userId()) { setStatus('uploadStatus', 'Enter a User ID above first', false); return; }
+  const fileInput = document.getElementById('receiptFile');
+  if (!fileInput.files.length) { setStatus('uploadStatus', 'Choose an image file first', false); return; }
+
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  formData.append('user_id', userId());
+
+  setStatus('uploadStatus', 'Uploading and running OCR — this can take a few seconds...', true);
+
+  try {
+    const res = await fetch(`${base()}/api/receipts`, { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) { setStatus('uploadStatus', JSON.stringify(data), false); return; }
+
+    setStatus('uploadStatus', `Receipt ${data.receipt.id} — ${data.lineItemCount} line item(s) found`, true);
+    document.getElementById('receiptId').value = data.receipt.id;
+    loadReceipt();
+  } catch (err) {
+    setStatus('uploadStatus', 'Request failed: ' + err.message, false);
+  }
+}
+
+async function loadReceipt() {
+  if (!userId()) { setStatus('reviewStatus', 'Enter a User ID above first', false); return; }
+  const receiptId = document.getElementById('receiptId').value.trim();
+  if (!receiptId) { setStatus('reviewStatus', 'Enter a receipt ID first', false); return; }
+
+  const container = document.getElementById('lineItems');
+  container.innerHTML = '';
+  document.getElementById('submitReviewBtn').style.display = 'none';
+
+  try {
+    const res = await fetch(`${base()}/api/receipts/${receiptId}?user_id=${encodeURIComponent(userId())}`);
+    const data = await res.json();
+    if (!res.ok) { setStatus('reviewStatus', JSON.stringify(data), false); return; }
+
+    setStatus('reviewStatus', `Receipt status: ${data.receipt.status} — ${data.lineItems.length} line item(s)`, true);
+
+    data.lineItems.forEach(li => {
+      const row = document.createElement('div');
+      row.className = 'line-item' + (li.confidence_score < 0.5 ? ' low-confidence' : '');
+      row.dataset.lineItemId = li.id;
+      row.innerHTML = `
+        <div class="top">
+          <span>"${li.raw_text}"</span>
+          <label><input type="checkbox" class="confirmed" checked /> Confirm</label>
+        </div>
+        <div class="fields">
+          <div>
+            <label>Ingredient ID</label>
+            <input class="ingredientId" value="${li.matched_ingredient_id ?? ''}" placeholder="paste ID if unmatched" />
+          </div>
+          <div>
+            <label>Quantity</label>
+            <input class="quantity" type="number" value="${li.quantity ?? 1}" />
+          </div>
+          <div>
+            <label>Unit</label>
+            <input class="unit" value="${li.unit ?? 'each'}" />
+          </div>
+          <div>
+            <label>Storage</label>
+            <select class="storage">
+              <option value="pantry">pantry</option>
+              <option value="fridge">fridge</option>
+              <option value="freezer">freezer</option>
+            </select>
+          </div>
+        </div>
+      `;
+      container.appendChild(row);
+    });
+
+    document.getElementById('submitReviewBtn').style.display = data.lineItems.length ? 'block' : 'none';
+  } catch (err) {
+    setStatus('reviewStatus', 'Request failed: ' + err.message, false);
+  }
+}
+
+async function submitReview() {
+  const receiptId = document.getElementById('receiptId').value.trim();
+  const rows = document.querySelectorAll('#lineItems .line-item');
+
+  const line_items = Array.from(rows).map(row => {
+    const confirmed = row.querySelector('.confirmed').checked;
+    const item = { id: row.dataset.lineItemId, confirmed };
+    if (confirmed) {
+      item.ingredient_id = row.querySelector('.ingredientId').value.trim();
+      item.quantity = Number(row.querySelector('.quantity').value);
+      item.unit = row.querySelector('.unit').value.trim();
+      item.storage_location = row.querySelector('.storage').value;
+    }
+    return item;
+  });
+
+  try {
+    const res = await fetch(`${base()}/api/receipts/${receiptId}/line-items`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId(), line_items }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setStatus('reviewStatus', JSON.stringify(data), false); return; }
+
+    setStatus('reviewStatus', `Reviewed — ${data.pantryItemsAdded.length} item(s) added to pantry`, true);
+    listItems();
+  } catch (err) {
+    setStatus('reviewStatus', 'Request failed: ' + err.message, false);
   }
 }
 </script>
