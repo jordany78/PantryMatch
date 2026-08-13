@@ -83,6 +83,47 @@ export async function parseLineItems(
 ): Promise<ParsedLineItem[]> {
   const supabase = createAdminClient();
 
+  // Fetch the full canonical ingredient list once, rather than a query per
+  // line — the match check below is a substring scan we do in JS.
+  const { data: allIngredients } = await supabase
+    .from("ingredients")
+    .select("id, name, aliases");
+
+  const candidates =
+    allIngredients?.map((ing) => ({
+      id: ing.id,
+      // Every string we'll check the receipt text against, longest first
+      // so a more specific match (e.g. "free range egg" over "egg") wins.
+      terms: [ing.name, ...(ing.aliases ?? [])]
+        .map((t) => t.toLowerCase())
+        .sort((a, b) => b.length - a.length),
+    })) ?? [];
+
+  // Receipt text is messy and brand-heavy ("GV ORGANIC MILK 2%"), while
+  // canonical ingredient names are short ("Whole Milk", alias "milk"). So
+  // the match direction is: does a short canonical term appear INSIDE the
+  // longer receipt line — not the other way around.
+  function matchIngredient(itemName: string): { id: string; confidence: number } | null {
+    const lower = itemName.toLowerCase();
+    let best: { id: string; termLength: number } | null = null;
+
+    for (const candidate of candidates) {
+      for (const term of candidate.terms) {
+        if (term.length >= 3 && lower.includes(term)) {
+          if (!best || term.length > best.termLength) {
+            best = { id: candidate.id, termLength: term.length };
+          }
+          break; // longest term for this candidate already checked first
+        }
+      }
+    }
+
+    if (!best) return null;
+    // Longer matched term relative to the item name = higher confidence.
+    const confidence = Math.min(0.5 + best.termLength / lower.length, 0.95);
+    return { id: best.id, confidence };
+  }
+
   const lines = rawText
     .split("\n")
     .map((l) => l.trim())
@@ -104,14 +145,7 @@ export async function parseLineItems(
 
     if (name.length < 2) continue;
 
-    // Fuzzy-match against the canonical ingredients table.
-    const { data: matches } = await supabase
-      .from("ingredients")
-      .select("id, name")
-      .ilike("name", `%${name}%`)
-      .limit(1);
-
-    const matched = matches?.[0];
+    const matched = matchIngredient(name);
 
     items.push({
       rawText: line,
@@ -120,7 +154,7 @@ export async function parseLineItems(
       unit: null,
       price,
       matchedIngredientId: matched?.id ?? null,
-      confidence: matched ? 0.7 : 0.3,
+      confidence: matched?.confidence ?? 0.3,
     });
   }
 
