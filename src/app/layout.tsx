@@ -1,5 +1,6 @@
 export const metadata = {
   title: "PantryMatch API",
+  description: "Kitchen inventory & recipe matching",
 };
 
 export default function RootLayout({
