@@ -6,5 +6,6 @@
 - [ ] New feature
 - [ ] Breaking change
 - [ ] Documentation update
+- [ ] Refactor
 
 ## How has this been tested?
