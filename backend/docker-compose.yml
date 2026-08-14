@@ -1,0 +1,22 @@
+# Local dev via Docker. Supabase itself is NOT run in this compose file —
+# this project talks to your hosted Supabase project (see .env), so the
+# only service here is the Next.js API.
+#
+# Usage:
+#   docker compose up --build
+# API will be available at http://localhost:4000
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production

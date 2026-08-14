@@ -1,0 +1,21 @@
+# Hot-reloading dev setup — mounts source code instead of building a
+# production image, so code changes reflect without a rebuild.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up --build
+# API will be available at http://localhost:4000
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
