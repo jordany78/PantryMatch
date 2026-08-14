@@ -2,23 +2,6 @@
 
 Snap a photo of your grocery receipt, and PantryMatch turns it into a live inventory of your fridge and pantry — then tells you exactly which recipes you can cook right now, and how close you are to the ones you can't.
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Core Features](#core-features)
-- [How It Works](#how-it-works)
-- [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
-- [Data Model](#data-model)
-- [Recipe Matching Algorithm](#recipe-matching-algorithm)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Environment Variables](#environment-variables)
-- [API Reference](#api-reference)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
-
 ## Overview
 
 Most people either over-buy groceries and let food go to waste, or stare into a fridge full of ingredients with no idea what to cook. PantryMatch closes that gap by making inventory tracking as frictionless as taking a photo, and by turning that inventory into actionable recipe suggestions ranked by how "match-ready" they are.
@@ -86,123 +69,75 @@ Receipt Photo
 
 ## Tech Stack
 
-**Frontend**
-- React (Vite) or Next.js — component-driven UI, easy image upload handling
-- Tailwind CSS — utility-first styling for rapid iteration
-- React Query / TanStack Query — server state, caching for inventory & recipe queries
+**Frontend & Backend (Unified)**
+- **Next.js 14** — React framework with built-in API routes, SSR, and full-stack capabilities
+- **React 18** — component-driven UI
+- **TypeScript** — static typing for type safety
 
-**Backend**
-- Node.js (Express or Fastify) or Python (FastAPI) — REST or GraphQL API layer
-- PostgreSQL — relational data (users, inventory, recipes, ingredients) with strong support for full-text search (`pg_trgm`) for the manual-add search
-- Redis (optional) — caching recipe match computations for large catalogs
+**Database & Auth**
+- **Supabase** — managed PostgreSQL database with real-time capabilities and built-in authentication
+  - Full-text search (`pg_trgm`) for ingredient search
+  - Row-level security (RLS) for multi-tenant data isolation
+  - Supabase Auth for user authentication and session management
 
 **OCR / Receipt Parsing**
-- Google Cloud Vision API, AWS Textract, or Tesseract.js (self-hosted/open-source alternative) for text extraction
-- Custom parsing layer (regex + heuristics, or a lightweight ML classifier) to segment raw OCR text into item/quantity/price triples
-- Fuzzy string matching (e.g. `pg_trgm`, Fuse.js, or Levenshtein-based matching) against a canonical ingredients table
+- **Google Cloud Vision API** — text extraction from receipt images
+- Custom parsing layer (regex + heuristics) to segment raw OCR text into item/quantity/price triples
+- Fuzzy string matching against canonical ingredients table
 
-**Infrastructure**
-- Docker for local dev parity
-- Cloud object storage (S3 / GCS) for storing uploaded receipt images
-- CI/CD via GitHub Actions
-- Hosting: Vercel/Netlify (frontend) + Render/Railway/Fly.io or AWS (backend), or a unified platform like Render for both
-
-**Auth**
-- JWT-based auth or a managed provider (Auth0, Clerk, Supabase Auth)
-
-## Architecture
-
-```
-┌─────────────┐      ┌──────────────────┐      ┌────────────────┐
-│   Frontend   │◄────►│    API Server     │◄────►│   PostgreSQL    │
-│ (React/Next) │      │ (Express/FastAPI) │      │  (users, items, │
-└─────────────┘      └──────────────────┘      │  recipes, etc.) │
-       │                      │                  └────────────────┘
-       │                      ▼
-       │              ┌──────────────┐
-       │              │  OCR Service  │
-       │              │ (Vision API /  │
-       │              │  Tesseract)   │
-       │              └──────────────┘
-       ▼
-┌─────────────┐
-│ Object Store │  (raw receipt images)
-│  (S3 / GCS)  │
-└─────────────┘
-```
-
-The OCR/parsing step is best implemented as an isolated service or queued job (rather than inline in the request/response cycle) since receipt processing can be slow and error-prone — this keeps the upload UX responsive and allows retries without blocking the user.
-
-## Data Model
-
-High-level schema (simplified):
-
-```
-users
- ├─ id, email, password_hash, created_at
-
-ingredients (canonical catalog)
- ├─ id, name, category, default_unit, aliases[]
-
-pantry_items (user inventory)
- ├─ id, user_id, ingredient_id, quantity, unit,
- │  storage_location (fridge | freezer | pantry),
- │  purchase_date, expires_at (nullable), source (receipt | manual)
-
-receipts
- ├─ id, user_id, image_url, uploaded_at, status (processing | reviewed | failed)
-
-receipt_line_items
- ├─ id, receipt_id, raw_text, matched_ingredient_id (nullable),
- │  quantity, unit, price, confidence_score, confirmed (bool)
-
-recipes
- ├─ id, name, cuisine, prep_time_minutes, instructions, dietary_tags[]
-
-recipe_ingredients
- ├─ id, recipe_id, ingredient_id, quantity, unit, is_optional (bool)
-```
-
-## Recipe Matching Algorithm
-
-For a given user and recipe:
-
-1. Fetch `recipe_ingredients` for the recipe.
-2. Fetch the user's `pantry_items`, normalized to comparable units.
-3. For each required ingredient, check whether the user has it in sufficient quantity (or at all, for a simpler v1).
-4. Compute:
-
-   ```
-   match_% = (matched_ingredients / total_required_ingredients) × 100
-   ```
-
-   Optional refinements:
-   - Weight core ingredients (e.g. protein, base starch) higher than garnishes/seasonings.
-   - Treat `is_optional` ingredients as bonus, not required, in the denominator.
-   - Quantity-aware matching (e.g. "have 1 egg, need 3" counts as partial credit rather than binary have/don't-have).
-
-5. Return `missing_ingredients[]` — the required ingredients not currently in the pantry — so the UI can render "You're missing: garlic, heavy cream."
-
-This computation can run on-demand per recipe view, or be pre-computed/cached and invalidated whenever the pantry changes (recommended once the recipe catalog grows large, to avoid recomputing every recipe on every inventory update).
+**Tooling**
+- **ESLint & Next.js linting** — code quality
+- **npm/Node.js** — package management and runtime
 
 ## Project Structure
 
 ```
 pantrymatch/
-├── apps/
-│   ├── web/                # Frontend (React/Next.js)
-│   └── api/                # Backend API server
-├── packages/
-│   ├── ocr-service/        # Receipt image → structured line items
-│   ├── matching-engine/    # Recipe match % computation
-│   └── shared-types/       # Shared TS types/interfaces across apps
+├── src/
+│   ├── app/                        # Next.js App Router
+│   │   ├── (auth)/                 # Frontend: authentication pages (route group)
+│   │   │   ├── login/
+│   │   │   ├── signup/
+│   │   │   ├── reset-password/
+│   │   │   └── update-password/
+│   │   ├── api/                    # Backend: API routes
+│   │   │   ├── ingredients/
+│   │   │   ├── pantry/
+│   │   │   ├── receipts/
+│   │   │   └── recipes/
+│   │   ├── layout.tsx              # Root layout
+│   │   └── page.tsx                # Home page
+│   │
+│   ├── backend/                    # Backend-specific code
+│   │   └── lib/
+│   │       ├── matching/           # Recipe match % computation
+│   │       ├── ocr/                # Receipt OCR processing
+│   │       └── supabase/           # Database clients (admin, server)
+│   │
+│   ├── lib/                        # Shared utilities & types
+│   │   ├── supabase/
+│   │   │   └── client.ts           # Browser-side Supabase client
+│   │   └── utils.ts                # Shared helpers
+│   │
+│   ├── components/                 # React components (for future use)
+│   └── types/                      # Shared TypeScript types
+│
 ├── db/
-│   ├── migrations/
-│   └── seed/                # Seed data: canonical ingredients, sample recipes
-├── docker-compose.yml
+│   ├── migrations/                 # SQL schema migrations
+│   └── seed/                       # Seed data: canonical ingredients, sample recipes
+│
+├── package.json
+├── tsconfig.json
+├── next.config.js
 ├── .env.example
 └── README.md
 ```
+
+**Key Separation:**
+- **Frontend**: `src/app/(auth)/` — user-facing pages
+- **Backend**: `src/app/api/` and `src/backend/lib/` — API routes and backend logic
+- **Shared**: `src/lib/` and `src/types/` — utilities accessible by both frontend and backend
+- **Database**: `db/` — migrations and seed data
 
 ## Getting Started
 
@@ -237,56 +172,3 @@ npm run dev
 ```
 
 The app should be available at `http://localhost:3000`, with the API at `http://localhost:4000`.
-
-## Environment Variables
-
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `OCR_PROVIDER` | `vision` \| `textract` \| `tesseract` |
-| `OCR_API_KEY` | API key for chosen cloud OCR provider (not needed for Tesseract) |
-| `STORAGE_BUCKET` | Object storage bucket name for receipt images |
-| `STORAGE_ACCESS_KEY` / `STORAGE_SECRET_KEY` | Credentials for object storage |
-| `JWT_SECRET` | Secret for signing auth tokens |
-| `REDIS_URL` | (Optional) Redis connection string for caching |
-
-## API Reference
-
-A minimal sketch of the core endpoints (adjust to REST/GraphQL preference):
-
-```
-POST   /api/receipts                 Upload a receipt image, kicks off OCR job
-GET    /api/receipts/:id             Poll receipt processing status + parsed items
-PATCH  /api/receipts/:id/line-items  Confirm/edit/reject parsed line items
-POST   /api/pantry/items             Manually add an item to inventory
-GET    /api/pantry/items             List current inventory
-DELETE /api/pantry/items/:id         Remove an item (used up, expired, etc.)
-GET    /api/ingredients/search?q=    Autocomplete search for manual add
-GET    /api/recipes                  List recipes, sorted/filtered by match %
-GET    /api/recipes/:id/match        Detailed match breakdown + missing items
-```
-
-## Roadmap
-
-- [ ] MVP: receipt upload → OCR → review → pantry → recipe match %
-- [ ] Manual item search & add
-- [ ] Expiration tracking with "use soon" notifications
-- [ ] Auto-generated shopping lists from missing ingredients
-- [ ] Barcode scanning as an alternative to receipt OCR
-- [ ] Dietary preference/allergen filtering on recipes
-- [ ] Meal planning calendar built on top of match %
-- [ ] Mobile app (React Native) sharing the same API
-- [ ] Community-submitted recipes with automatic ingredient parsing
-
-## Contributing
-
-Contributions are welcome. Please open an issue to discuss significant changes before submitting a PR. For smaller fixes, feel free to open a PR directly.
-
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Commit your changes
-4. Push and open a PR
-
-## License
-
-MIT — see [LICENSE](LICENSE) for details.

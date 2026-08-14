@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { extractTextFromReceipt, parseLineItems } from "@/lib/ocr/vision";
+import { createAdminClient } from "@/backend/lib/supabase/admin";
+import { extractTextFromReceipt, parseLineItems } from "@/backend/lib/ocr/vision";
 
 // POST /api/receipts
 // Multipart form data: { file: <image>, user_id: <uuid> }

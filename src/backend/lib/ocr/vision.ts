@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/backend/lib/supabase/admin";
 
 // Wraps Google Cloud Vision's text detection API and hands raw OCR text
 // off to the line-item parser.
