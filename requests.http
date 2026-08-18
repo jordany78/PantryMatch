@@ -1,5 +1,5 @@
 ### Replace with a real user id from Supabase → Authentication → Users
-@userId = 00000000-0000-0000-0000-000000000000
+@userId = dd28e125-d5de-4761-856e-0e98e78d7b6e
 @baseUrl = http://localhost:4000
 
 ### Search ingredients (run this first — no user needed)
@@ -15,7 +15,7 @@ Content-Type: application/json
 
 {
   "user_id": "{{userId}}",
-  "ingredient_id": "PASTE_INGREDIENT_ID_HERE",
+  "ingredient_id": "331bf926-0dab-4754-b6b2-c3af91049fc0",
   "quantity": 6,
   "unit": "each",
   "storage_location": "pantry"
@@ -26,25 +26,49 @@ GET {{baseUrl}}/api/pantry/items?user_id={{userId}}
 
 ### Delete a pantry item
 # Copy an item "id" from the list response above
-DELETE {{baseUrl}}/api/pantry/items/PASTE_ITEM_ID_HERE?user_id={{userId}}
+DELETE {{baseUrl}}/api/pantry/items/2d87f13e-7911-4f52-9405-20a2a5523d48?user_id={{userId}}
 
-### Upload a receipt (multipart) — POST /api/receipts is still a stub, expect 501
+### Upload a receipt (multipart)
+# Requires: a "receipts" bucket created in Supabase Storage, and
+# GOOGLE_CLOUD_VISION_API_KEY set in .env
+# Field name MUST be "file" — matches formData.get("file") in the route
 POST {{baseUrl}}/api/receipts
 Content-Type: multipart/form-data; boundary=boundary
 
 --boundary
 Content-Disposition: form-data; name="user_id"
 
-00000000-0000-0000-0000-000000000000
+{{userId}}
 --boundary
-Content-Disposition: form-data; name="image"; filename="receipt.jpg"
+Content-Disposition: form-data; name="file"; filename="receipt.jpg"
 Content-Type: image/jpeg
 
 < /absolute/path/to/receipt.jpg
 --boundary--
 
-### Check receipt status — GET /api/receipts/:id is also still a stub, expect 501
-GET {{baseUrl}}/api/receipts/PASTE_RECEIPT_ID_HERE
+### Check receipt status + parsed line items
+# Copy the "id" from the upload response above
+GET {{baseUrl}}/api/receipts/91b1c358-4bff-4a3a-b2e4-8d5a50f9b342?user_id={{userId}}
+
+### Confirm/reject parsed line items, insert confirmed ones into pantry
+# Copy line item "id"s and a matched "matched_ingredient_id" from the GET above.
+# Every confirmed item needs ingredient_id, quantity, unit, storage_location.
+PATCH {{baseUrl}}/api/receipts/91b1c358-4bff-4a3a-b2e4-8d5a50f9b342/line-items
+Content-Type: application/json
+
+{
+  "user_id": "{{userId}}",
+  "line_items": [
+    {
+      "id": "PASTE_LINE_ITEM_ID_HERE",
+      "confirmed": true,
+      "ingredient_id": "PASTE_MATCHED_INGREDIENT_ID_HERE",
+      "quantity": 1,
+      "unit": "each",
+      "storage_location": "pantry"
+    }
+  ]
+}
 
 ### List recipes ranked by match % against your pantry
 GET {{baseUrl}}/api/recipes?user_id={{userId}}&sort=match_desc
@@ -53,4 +77,4 @@ GET {{baseUrl}}/api/recipes?user_id={{userId}}&sort=match_desc
 GET {{baseUrl}}/api/recipes?user_id={{userId}}&min_match=50
 
 ### Detailed match breakdown for one recipe — copy a recipe "id" from the list above
-GET {{baseUrl}}/api/recipes/PASTE_RECIPE_ID_HERE/match?user_id={{userId}}
+GET {{baseUrl}}/api/recipes/65cb8528-83cb-47f6-90e3-90b8a1eebc57/match?user_id={{userId}}
