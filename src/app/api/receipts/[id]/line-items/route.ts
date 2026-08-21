@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthenticatedClient } from "@/lib/supabase/server";
 
 // PATCH /api/receipts/:id/line-items
 // Body: {
-//   user_id: string,
 //   line_items: Array<{
 //     id: string,              // receipt_line_items.id
 //     confirmed: boolean,      // false = user rejected this item, skip it
@@ -23,11 +22,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   const body = await req.json();
-  const { user_id, line_items } = body;
-
-  if (!user_id) {
-    return NextResponse.json({ error: "user_id is required" }, { status: 400 });
-  }
+  const { line_items } = body;
   if (!Array.isArray(line_items) || line_items.length === 0) {
     return NextResponse.json(
       { error: "line_items must be a non-empty array" },
@@ -35,14 +30,17 @@ export async function PATCH(
     );
   }
 
-  const supabase = createAdminClient();
+  const { supabase, user } = await getAuthenticatedClient();
+  if (!user) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
+  }
 
   // Confirm the receipt belongs to this user before touching anything.
   const { data: receipt, error: receiptError } = await supabase
     .from("receipts")
     .select("id, user_id")
     .eq("id", params.id)
-    .eq("user_id", user_id)
+    .eq("user_id", user.id)
     .single();
 
   if (receiptError || !receipt) {
@@ -87,7 +85,7 @@ export async function PATCH(
       const { data: pantryItem, error: pantryError } = await supabase
         .from("pantry_items")
         .insert({
-          user_id,
+          user_id: user.id,
           ingredient_id: item.ingredient_id,
           quantity: item.quantity,
           unit: item.unit,

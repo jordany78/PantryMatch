@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthenticatedClient } from "@/lib/supabase/server";
 import { computeMatch } from "@/lib/matching/computeMatch";
 import type { PantryItem, Recipe, RecipeIngredient } from "@/types";
 
-// GET /api/recipes/:id/match?user_id=<uuid>
+// GET /api/recipes/:id/match
 //
 // Detailed match breakdown for a single recipe: match %, and the matched vs.
 // missing ingredients by name (not just id), so the UI can render something
@@ -13,15 +13,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const userId = req.nextUrl.searchParams.get("user_id");
-  if (!userId) {
-    return NextResponse.json(
-      { error: "user_id query param is required" },
-      { status: 400 }
-    );
+  const { supabase, user } = await getAuthenticatedClient();
+  if (!user) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
   }
-
-  const supabase = createAdminClient();
 
   const { data: recipeRaw, error: recipeError } = await supabase
     .from("recipes")
@@ -39,7 +34,7 @@ export async function GET(
         .from("recipe_ingredients")
         .select("*, ingredients(id, name, category)")
         .eq("recipe_id", id),
-      supabase.from("pantry_items").select("*").eq("user_id", userId),
+      supabase.from("pantry_items").select("*").eq("user_id", user.id),
     ]);
 
   if (riError) {

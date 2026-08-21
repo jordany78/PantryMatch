@@ -1,24 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthenticatedClient } from "@/lib/supabase/server";
 
-// GET /api/pantry/items?user_id=<uuid>
-// TEMP: user_id comes from a query param until real auth is wired in.
-// Once Supabase Auth is on the frontend, read the user from the session
-// (src/lib/supabase/server.ts) instead of trusting a query param.
+// GET /api/pantry/items
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get("user_id");
-  if (!userId) {
-    return NextResponse.json(
-      { error: "user_id query param is required" },
-      { status: 400 }
-    );
+  const { supabase, user } = await getAuthenticatedClient();
+  if (!user) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
   }
 
-  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("pantry_items")
     .select("*, ingredients(name, category)")
-    .eq("user_id", userId)
+    .eq("user_id", user.id)
     .order("purchase_date", { ascending: false });
 
   if (error) {
@@ -29,17 +22,17 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/pantry/items
-// Body: { user_id, ingredient_id, quantity, unit, storage_location, expires_at? }
+// Body: { ingredient_id, quantity, unit, storage_location, expires_at? }
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { user_id, ingredient_id, quantity, unit, storage_location, expires_at } =
+  const { ingredient_id, quantity, unit, storage_location, expires_at } =
     body;
 
-  if (!user_id || !ingredient_id || !quantity || !unit || !storage_location) {
+  if (!ingredient_id || !quantity || !unit || !storage_location) {
     return NextResponse.json(
       {
         error:
-          "user_id, ingredient_id, quantity, unit, and storage_location are required",
+          "ingredient_id, quantity, unit, and storage_location are required",
       },
       { status: 400 }
     );
@@ -52,11 +45,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const supabase = createAdminClient();
+  const { supabase, user } = await getAuthenticatedClient();
+  if (!user) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
+  }
+
   const { data, error } = await supabase
     .from("pantry_items")
     .insert({
-      user_id,
+      user_id: user.id,
       ingredient_id,
       quantity,
       unit,

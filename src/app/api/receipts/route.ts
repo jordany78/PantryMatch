@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthenticatedClient } from "@/lib/supabase/server";
 import { extractTextFromReceipt, parseLineItems } from "@/lib/ocr/vision";
 
 // POST /api/receipts
-// Multipart form data: { file: <image>, user_id: <uuid> }
+// Multipart form data: { file: <image> }
 //
 // Uploads the image to Supabase Storage, runs OCR + parsing synchronously,
 // and inserts the resulting line items. Synchronous is fine for an MVP —
@@ -11,12 +11,14 @@ import { extractTextFromReceipt, parseLineItems } from "@/lib/ocr/vision";
 // slower providers swapped in, move this to a background job (e.g. a queue
 // + a separate worker) instead of blocking the request.
 //
-// TEMP: user_id comes from the form body until real auth is wired in (see
-// the same note on /api/pantry/items).
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const file = formData.get("file");
-  const userId = formData.get("user_id");
+  const { supabase, user } = await getAuthenticatedClient();
+
+  if (!user) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
+  }
 
   if (!(file instanceof File)) {
     return NextResponse.json(
@@ -24,16 +26,8 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  if (!userId || typeof userId !== "string") {
-    return NextResponse.json(
-      { error: "user_id is required" },
-      { status: 400 }
-    );
-  }
-
-  const supabase = createAdminClient();
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const storagePath = `${userId}/${crypto.randomUUID()}-${file.name}`;
+  const storagePath = `${user.id}/${crypto.randomUUID()}-${file.name}`;
 
   // Requires a "receipts" bucket to exist in Supabase Storage — create it
   // once via the dashboard (Storage -> New bucket -> name it "receipts").
@@ -48,7 +42,7 @@ export async function POST(req: NextRequest) {
   const { data: receipt, error: insertError } = await supabase
     .from("receipts")
     .insert({
-      user_id: userId,
+      user_id: user.id,
       image_url: storagePath,
       status: "processing",
     })
@@ -62,7 +56,7 @@ export async function POST(req: NextRequest) {
   try {
     const base64 = Buffer.from(bytes).toString("base64");
     const { rawText } = await extractTextFromReceipt(base64);
-    const parsed = await parseLineItems(rawText);
+    const parsed = await parseLineItems(rawText, supabase);
 
     if (parsed.length > 0) {
       const { error: lineItemsError } = await supabase
