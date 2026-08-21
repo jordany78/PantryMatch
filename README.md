@@ -129,7 +129,7 @@ pantrymatch/
 Docker, Redis, and a separate PostgreSQL server are not required by the current repository.
 
 ### Setup
-
+```bash
 # Clone the repo
 git clone https://github.com/jordany78/pantrymatch.git
 cd pantrymatch
@@ -157,4 +157,3 @@ there is no second server on port 3000.
 4. In the Supabase **SQL Editor**, run these files in order:
      `db/migrations/0001_init.sql`, `db/migrations/0002_rls.sql`,
      `db/seed/ingredients.sql`, then `db/seed/recipes.sql`.
-     
