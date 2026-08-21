@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/backend/lib/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // GET /api/ingredients/search?q=ban
 // Fuzzy search against the canonical ingredients table for manual pantry add.

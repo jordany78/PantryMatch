@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/backend/lib/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // PATCH /api/receipts/:id/line-items
 // Body: {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/backend/lib/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // GET /api/receipts/:id?user_id=<uuid>
 // Returns receipt status and its parsed line items (populated once OCR

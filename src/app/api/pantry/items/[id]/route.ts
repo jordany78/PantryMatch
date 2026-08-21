@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/backend/lib/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // DELETE /api/pantry/items/:id?user_id=<uuid>
 // TEMP: user_id comes from a query param until real auth is wired in (see
