@@ -1,34 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthenticatedClient } from "@/lib/supabase/server";
 import { computeMatch } from "@/lib/matching/computeMatch";
 import type { PantryItem, Recipe, RecipeIngredient } from "@/types";
 
-// GET /api/recipes?user_id=<uuid>&sort=match_desc&cuisine=Italian&min_match=50
+// GET /api/recipes?sort=match_desc&cuisine=Italian&min_match=50
 //
 // Lists all recipes with a computed match % against the user's pantry.
-// TEMP: user_id is a query param until real auth is wired in (see the same
-// note on /api/pantry/items).
-//
 // Query params:
-//   user_id    (required) — whose pantry to match against
 //   sort       match_desc (default) | match_asc | prep_time
 //   cuisine    exact match on recipes.cuisine
 //   min_match  only return recipes at or above this match % (0-100)
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get("user_id");
-  if (!userId) {
-    return NextResponse.json(
-      { error: "user_id query param is required" },
-      { status: 400 }
-    );
+  const { supabase, user } = await getAuthenticatedClient();
+  if (!user) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
   }
 
   const sort = req.nextUrl.searchParams.get("sort") ?? "match_desc";
   const cuisine = req.nextUrl.searchParams.get("cuisine");
   const minMatchParam = req.nextUrl.searchParams.get("min_match");
   const minMatch = minMatchParam ? Number(minMatchParam) : null;
-
-  const supabase = createAdminClient();
 
   // Pull everything needed to compute match % for every recipe in one pass,
   // rather than querying per-recipe — cheap at this catalog size, and keeps
@@ -42,7 +33,7 @@ export async function GET(req: NextRequest) {
     await Promise.all([
       recipeQuery,
       supabase.from("recipe_ingredients").select("*"),
-      supabase.from("pantry_items").select("*").eq("user_id", userId),
+      supabase.from("pantry_items").select("*").eq("user_id", user.id),
     ]);
 
   if (recipesError) {

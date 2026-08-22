@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/backend/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Wraps Google Cloud Vision's text detection API and hands raw OCR text
 // off to the line-item parser.
@@ -79,10 +79,9 @@ const PRICE_AT_END = /^(.+?)\s+\$?(\d+\.\d{2})\s*$/;
 // against real receipts you test with, or replace this with an ML-based
 // parser later if accuracy matters more than a fast MVP.
 export async function parseLineItems(
-  rawText: string
+  rawText: string,
+  supabase: SupabaseClient
 ): Promise<ParsedLineItem[]> {
-  const supabase = createAdminClient();
-
   // Fetch the full canonical ingredient list once, rather than a query per
   // line — the match check below is a substring scan we do in JS.
   const { data: allIngredients } = await supabase

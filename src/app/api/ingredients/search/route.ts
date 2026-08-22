@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/backend/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 // GET /api/ingredients/search?q=ban
+// Requires an authenticated Supabase session.
 // Fuzzy search against the canonical ingredients table for manual pantry add.
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q");
@@ -9,7 +10,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ingredients: [] });
   }
 
-  const supabase = createAdminClient();
+  const supabase = createClient();
 
   // ilike works out of the box with no extra setup. Once pg_trgm's similarity
   // ranking is worth the extra plumbing (an RPC function), swap this for a
