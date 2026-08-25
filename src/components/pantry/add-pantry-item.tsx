@@ -22,7 +22,7 @@ interface SelectedIngredient {
 
 const STORAGE_OPTIONS = ["fridge", "freezer", "pantry"] as const;
 
-export function AddPantryItem({ userId }: { userId: string }) {
+export function AddPantryItem() {
   const router = useRouter();
 
   const [query, setQuery] = useState("");
@@ -113,7 +113,6 @@ export function AddPantryItem({ userId }: { userId: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: userId,
           ingredient_id: selected.id,
           quantity: Number(quantity),
           unit,

@@ -1,4 +1,4 @@
-import { createClient } from "@/backend/lib/supabase/server";
+import { getAuthenticatedClient } from "@/lib/supabase/server";
 import { AddPantryItem } from "@/components/pantry/add-pantry-item";
 import Link from "next/link";
 
@@ -16,11 +16,7 @@ export default async function PantryPage({
 }: {
   searchParams: { sort?: string };
 }) {
-  const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getAuthenticatedClient();
 
   const sort = (searchParams.sort as SortOption) ?? "recent";
 
@@ -52,7 +48,7 @@ export default async function PantryPage({
         </p>
       </div>
 
-      <AddPantryItem userId={user!.id} />
+      <AddPantryItem />
 
       <div className="flex items-center gap-2 border-b border-white/10 pb-3">
         <span className="text-xs text-gray-500">Sort by:</span>
