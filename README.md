@@ -69,25 +69,11 @@ Receipt Photo
 
 ## Tech Stack
 
-**Frontend & Backend (Unified)**
-- **Next.js 14** — React framework with built-in API routes, SSR, and full-stack capabilities
-- **React 18** — component-driven UI
-- **TypeScript** — static typing for type safety
-
-**Database & Auth**
-- **Supabase** — managed PostgreSQL database with real-time capabilities and built-in authentication
-  - Full-text search (`pg_trgm`) for ingredient search
-  - Row-level security (RLS) for multi-tenant data isolation
-  - Supabase Auth for user authentication and session management
-
-**OCR / Receipt Parsing**
-- **Google Cloud Vision API** — text extraction from receipt images
-- Custom parsing layer (regex + heuristics) to segment raw OCR text into item/quantity/price triples
-- Fuzzy string matching against canonical ingredients table
-
-**Tooling**
-- **ESLint & Next.js linting** — code quality
-- **npm/Node.js** — package management and runtime
+- **Next.js 14**, **React 18**, and **TypeScript** in one application
+- **Supabase** for PostgreSQL and authentication
+- **Google Cloud Vision** for receipt text extraction
+- SQL migrations and seed data in `db/`
+- npm scripts for development, linting, and production builds
 
 ## Project Structure
 
@@ -108,25 +94,18 @@ pantrymatch/
 │   │   ├── layout.tsx              # Root layout
 │   │   └── page.tsx                # Home page
 │   │
-│   ├── backend/                    # Backend-specific code
-│   │   └── lib/
-│   │       ├── matching/           # Recipe match % computation
-│   │       ├── ocr/                # Receipt OCR processing
-│   │       └── supabase/           # Database clients (admin, server)
-│   │
-│   ├── lib/                        # Shared utilities & types
-│   │   ├── supabase/
-│   │   │   └── client.ts           # Browser-side Supabase client
-│   │   └── utils.ts                # Shared helpers
-│   │
-│   ├── components/                 # React components (for future use)
+│   ├── lib/                        # Shared/server-side clients and domain logic
+│   │   ├── matching/               # Recipe match calculation
+│   │   ├── ocr/                    # Receipt OCR and line-item parsing
+│   │   └── supabase/               # Browser, server, and admin clients
 │   └── types/                      # Shared TypeScript types
 │
 ├── db/
 │   ├── migrations/                 # SQL schema migrations
 │   └── seed/                       # Seed data: canonical ingredients, sample recipes
 │
-├── package.json
+├── package.json                   # Scripts and dependencies
+├── package-lock.json               # Reproducible npm dependency versions
 ├── tsconfig.json
 ├── next.config.js
 ├── .env.example
@@ -135,20 +114,21 @@ pantrymatch/
 
 **Key Separation:**
 - **Frontend**: `src/app/(auth)/` — user-facing pages
-- **Backend**: `src/app/api/` and `src/backend/lib/` — API routes and backend logic
+- **Backend**: `src/app/api/` and `src/lib/` — API routes and backend logic
 - **Shared**: `src/lib/` and `src/types/` — utilities accessible by both frontend and backend
 - **Database**: `db/` — migrations and seed data
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js 20+
-- Docker & Docker Compose
-- PostgreSQL 15+ (or use the provided Docker service)
-- API key for chosen OCR provider (if not using self-hosted Tesseract)
+- Node.js 20 or newer, including npm
+- A Supabase project (the hosted free tier is sufficient for local development)
+- Git
+- A Google Cloud Vision API key only if you want to scan receipts
+
+Docker, Redis, and a separate PostgreSQL server are not required by the current repository.
 
 ### Setup
-
 ```bash
 # Clone the repo
 git clone https://github.com/jordany78/pantrymatch.git
@@ -160,15 +140,20 @@ cp .env.example .env
 # Install dependencies
 npm install
 
-# Start local services (Postgres, Redis)
-docker-compose up -d
-
-# Run database migrations and seed canonical ingredients
-npm run db:migrate
-npm run db:seed
-
-# Start dev servers (frontend + backend)
+# Start the Next.js application
 npm run dev
 ```
 
-The app should be available at `http://localhost:3000`, with the API at `http://localhost:4000`.
+Open `http://localhost:4000`. The API is served by the same Next.js process under `/api`;
+there is no second server on port 3000.
+
+### Configure Supabase
+
+1. Create a project at [supabase.com](https://supabase.com/).
+2. In **Project Settings > API**, copy the project URL into `NEXT_PUBLIC_SUPABASE_URL`
+     and the publishable/anon key into `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+3. Copy the service-role key into `SUPABASE_SERVICE_ROLE_KEY`. Keep this key server-only
+     and never expose it in client-side code.
+4. In the Supabase **SQL Editor**, run these files in order:
+     `db/migrations/0001_init.sql`, `db/migrations/0002_rls.sql`,
+     `db/seed/ingredients.sql`, then `db/seed/recipes.sql`.

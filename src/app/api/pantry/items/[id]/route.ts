@@ -1,27 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/backend/lib/supabase/admin";
+import { getAuthenticatedClient } from "@/lib/supabase/server";
 
-// DELETE /api/pantry/items/:id?user_id=<uuid>
-// TEMP: user_id comes from a query param until real auth is wired in (see
-// src/app/api/pantry/items/route.ts for the same note).
+// DELETE /api/pantry/items/:id
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const userId = req.nextUrl.searchParams.get("user_id");
-  if (!userId) {
-    return NextResponse.json(
-      { error: "user_id query param is required" },
-      { status: 400 }
-    );
+  const { supabase, user } = await getAuthenticatedClient();
+  if (!user) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
   }
 
-  const supabase = createAdminClient();
   const { error } = await supabase
     .from("pantry_items")
     .delete()
     .eq("id", params.id)
-    .eq("user_id", userId);
+    .eq("user_id", user.id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

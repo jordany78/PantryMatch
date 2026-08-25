@@ -1,28 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/backend/lib/supabase/admin";
+import { getAuthenticatedClient } from "@/lib/supabase/server";
 
-// GET /api/receipts/:id?user_id=<uuid>
+// GET /api/receipts/:id
 // Returns receipt status and its parsed line items (populated once OCR
 // completes in POST /api/receipts).
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const userId = req.nextUrl.searchParams.get("user_id");
-  if (!userId) {
-    return NextResponse.json(
-      { error: "user_id query param is required" },
-      { status: 400 }
-    );
+  const { supabase, user } = await getAuthenticatedClient();
+  if (!user) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
   }
-
-  const supabase = createAdminClient();
 
   const { data: receipt, error: receiptError } = await supabase
     .from("receipts")
     .select("*")
     .eq("id", params.id)
-    .eq("user_id", userId)
+    .eq("user_id", user.id)
     .single();
 
   if (receiptError || !receipt) {

@@ -1,11 +1,106 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthenticatedClient } from "@/lib/supabase/server";
+import { computeMatch } from "@/lib/matching/computeMatch";
+import type { PantryItem, Recipe, RecipeIngredient } from "@/types";
 
 // GET /api/recipes/:id/match
-// Detailed match breakdown for a single recipe: matched vs. missing ingredients.
+//
+// Detailed match breakdown for a single recipe: match %, and the matched vs.
+// missing ingredients by name (not just id), so the UI can render something
+// like "You're missing: garlic, heavy cream" directly.
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  // TODO: fetch recipe_ingredients for :id, diff against pantry_items
-  return NextResponse.json({ message: "not implemented" }, { status: 501 });
+  const { id } = await params;
+  const { supabase, user } = await getAuthenticatedClient();
+  if (!user) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
+  }
+
+  const { data: recipeRaw, error: recipeError } = await supabase
+    .from("recipes")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (recipeError || !recipeRaw) {
+    return NextResponse.json({ error: "recipe not found" }, { status: 404 });
+  }
+
+  const [{ data: recipeIngredientsRaw, error: riError }, { data: pantryItemsRaw, error: pantryError }] =
+    await Promise.all([
+      supabase
+        .from("recipe_ingredients")
+        .select("*, ingredients(id, name, category)")
+        .eq("recipe_id", id),
+      supabase.from("pantry_items").select("*").eq("user_id", user.id),
+    ]);
+
+  if (riError) {
+    return NextResponse.json({ error: riError.message }, { status: 500 });
+  }
+  if (pantryError) {
+    return NextResponse.json({ error: pantryError.message }, { status: 500 });
+  }
+
+  const recipe: Recipe = {
+    id: recipeRaw.id,
+    name: recipeRaw.name,
+    cuisine: recipeRaw.cuisine,
+    prepTimeMinutes: recipeRaw.prep_time_minutes,
+    instructions: recipeRaw.instructions,
+    dietaryTags: recipeRaw.dietary_tags ?? [],
+  };
+
+  const recipeIngredients: RecipeIngredient[] = (recipeIngredientsRaw ?? []).map(
+    (ri: any) => ({
+      id: ri.id,
+      recipeId: ri.recipe_id,
+      ingredientId: ri.ingredient_id,
+      quantity: ri.quantity,
+      unit: ri.unit,
+      isOptional: ri.is_optional,
+    })
+  );
+
+  const pantryItems: PantryItem[] = (pantryItemsRaw ?? []).map((p) => ({
+    id: p.id,
+    userId: p.user_id,
+    ingredientId: p.ingredient_id,
+    quantity: p.quantity,
+    unit: p.unit,
+    storageLocation: p.storage_location,
+    purchaseDate: p.purchase_date,
+    expiresAt: p.expires_at,
+    source: p.source,
+  }));
+
+  const match = computeMatch(recipe, recipeIngredients, pantryItems);
+
+  // Attach ingredient names to the matched/missing id lists so the UI
+  // doesn't need a second round trip just to display them.
+  const ingredientNameById = new Map(
+    (recipeIngredientsRaw ?? []).map((ri: any) => [
+      ri.ingredient_id,
+      ri.ingredients?.name ?? "Unknown ingredient",
+    ])
+  );
+
+  const missingIngredients = match.missingIngredientIds.map((ingredientId) => ({
+    ingredientId,
+    name: ingredientNameById.get(ingredientId),
+  }));
+
+  const matchedIngredients = match.matchedIngredientIds.map((ingredientId) => ({
+    ingredientId,
+    name: ingredientNameById.get(ingredientId),
+  }));
+
+  return NextResponse.json({
+    recipe,
+    matchPercent: match.matchPercent,
+    matchedIngredients,
+    missingIngredients,
+  });
 }

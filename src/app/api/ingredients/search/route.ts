@@ -1,25 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/backend/lib/supabase/admin";
+import { getAuthenticatedClient } from "@/lib/supabase/server";
 
 // GET /api/ingredients/search?q=ban
-// Fuzzy search against the canonical ingredients table for manual pantry add.
+// Requires an authenticated Supabase session.
+// Similarity-ranked search against ingredient names and aliases.
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q");
   if (!q || q.trim().length === 0) {
     return NextResponse.json({ ingredients: [] });
   }
 
-  const supabase = createAdminClient();
+  const { supabase, user } = await getAuthenticatedClient();
+  if (!user) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
+  }
 
-  // ilike works out of the box with no extra setup. Once pg_trgm's similarity
-  // ranking is worth the extra plumbing (an RPC function), swap this for a
-  // similarity()-ordered query so close-but-not-substring matches (e.g. a
-  // typo) also surface.
-  const { data, error } = await supabase
-    .from("ingredients")
-    .select("*")
-    .ilike("name", `%${q}%`)
-    .limit(10);
+  const { data, error } = await supabase.rpc("search_ingredients", {
+    search_query: q.trim(),
+    result_limit: 10,
+    min_similarity: 0.15,
+  });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
