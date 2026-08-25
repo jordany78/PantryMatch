@@ -29,7 +29,19 @@ async function importRecipe(recipe: SpoonacularRecipe) {
     .select("id")
     .single();
 
-  if (recipeError || !created) throw recipeError ?? new Error("Recipe import failed");
+  if (recipeError) {
+    if (recipeError.code !== "23505") throw recipeError;
+    const { data: concurrentRecipe, error: concurrentRecipeError } = await admin
+      .from("recipes")
+      .select("id")
+      .eq("spoonacular_id", recipe.id)
+      .single();
+    if (concurrentRecipeError || !concurrentRecipe) {
+      throw concurrentRecipeError ?? new Error("Recipe import failed");
+    }
+    return;
+  }
+  if (!created) throw new Error("Recipe import failed");
 
   const ingredientRows = [];
   for (const ingredient of recipe.extendedIngredients ?? []) {
@@ -55,8 +67,21 @@ async function importRecipe(recipe: SpoonacularRecipe) {
         .insert({ name: ingredient.name, spoonacular_id: ingredient.id })
         .select("id")
         .single();
-      if (ingredientError || !createdIngredient) throw ingredientError ?? new Error("Ingredient import failed");
-      ingredientId = createdIngredient.id;
+      if (ingredientError) {
+        if (ingredientError.code !== "23505") throw ingredientError;
+        const { data: concurrentIngredient, error: concurrentIngredientError } = await admin
+          .from("ingredients")
+          .select("id")
+          .eq("spoonacular_id", ingredient.id)
+          .single();
+        if (concurrentIngredientError || !concurrentIngredient) {
+          throw concurrentIngredientError ?? new Error("Ingredient import failed");
+        }
+        ingredientId = concurrentIngredient.id;
+      } else {
+        if (!createdIngredient) throw new Error("Ingredient import failed");
+        ingredientId = createdIngredient.id;
+      }
     }
 
     ingredientRows.push({
@@ -79,8 +104,8 @@ async function importRecipe(recipe: SpoonacularRecipe) {
 // Lists all recipes with a computed match % against the user's pantry.
 // Query params:
 //   sort       match_desc (default) | match_asc | prep_time
-//   cuisine    exact match on recipes.cuisine
-//   diet       recipe dietary tag, such as vegetarian
+//   cuisine    case-insensitive partial match on recipes.cuisine
+//   diet       case-insensitive partial recipe dietary tag, such as vegetarian
 //   min_match  only return recipes at or above this match % (0-100)
 //   max_prep   only return recipes at or below this prep time in minutes
 export async function GET(req: NextRequest) {
@@ -97,6 +122,8 @@ export async function GET(req: NextRequest) {
   const minMatch = minMatchParam ? Number(minMatchParam) : null;
   const maxPrepParam = req.nextUrl.searchParams.get("max_prep");
   const maxPrep = maxPrepParam ? Number(maxPrepParam) : null;
+  const normalizedCuisine = cuisine?.trim().toLowerCase();
+  const normalizedDiet = diet?.trim().toLowerCase();
 
   // Pull everything needed to compute match % for every recipe in one pass,
   // rather than querying per-recipe — cheap at this catalog size, and keeps
@@ -104,12 +131,6 @@ export async function GET(req: NextRequest) {
   let recipeQuery = supabase.from("recipes").select("*");
   if (query) {
     recipeQuery = recipeQuery.ilike("name", `%${query}%`);
-  }
-  if (cuisine) {
-    recipeQuery = recipeQuery.eq("cuisine", cuisine);
-  }
-  if (diet) {
-    recipeQuery = recipeQuery.contains("dietary_tags", [diet]);
   }
   if (maxPrep !== null && !Number.isNaN(maxPrep)) {
     recipeQuery = recipeQuery.lte("prep_time_minutes", maxPrep);
@@ -160,7 +181,14 @@ export async function GET(req: NextRequest) {
     prepTimeMinutes: r.prep_time_minutes,
     instructions: r.instructions,
     dietaryTags: r.dietary_tags ?? [],
-  }));
+  })).filter((recipe) => {
+    const cuisineMatches = !normalizedCuisine ||
+      recipe.cuisine?.trim().toLowerCase().includes(normalizedCuisine);
+    const dietMatches = !normalizedDiet || recipe.dietaryTags.some(
+      (tag: string) => tag.trim().toLowerCase().includes(normalizedDiet)
+    );
+    return cuisineMatches && dietMatches;
+  });
 
   const recipeIngredients: RecipeIngredient[] = (recipeIngredientsRaw ?? []).map(
     (ri) => ({
