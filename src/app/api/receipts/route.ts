@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedClient } from "@/lib/supabase/server";
 import { extractTextFromReceipt, parseLineItems } from "@/lib/ocr/vision";
+import { parseFormData, receiptUploadSchema } from "@/lib/validation";
 
 // POST /api/receipts
 // Multipart form data: { file: <image> }
@@ -12,20 +13,15 @@ import { extractTextFromReceipt, parseLineItems } from "@/lib/ocr/vision";
 // + a separate worker) instead of blocking the request.
 //
 export async function POST(req: NextRequest) {
-  const formData = await req.formData();
-  const file = formData.get("file");
+  const parsed = await parseFormData(req, receiptUploadSchema);
+  if (parsed instanceof NextResponse) return parsed;
+  const { file } = parsed;
   const { supabase, user } = await getAuthenticatedClient();
 
   if (!user) {
     return NextResponse.json({ error: "authentication required" }, { status: 401 });
   }
 
-  if (!(file instanceof File)) {
-    return NextResponse.json(
-      { error: "file is required (multipart form field)" },
-      { status: 400 }
-    );
-  }
   const bytes = new Uint8Array(await file.arrayBuffer());
   const storagePath = `${user.id}/${crypto.randomUUID()}-${file.name}`;
 

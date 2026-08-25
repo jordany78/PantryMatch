@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedClient } from "@/lib/supabase/server";
 import { computeMatch } from "@/lib/matching/computeMatch";
+import { recipeQuerySchema, validationError } from "@/lib/validation";
 import type { PantryItem, Recipe, RecipeIngredient } from "@/types";
 
 // GET /api/recipes?sort=match_desc&cuisine=Italian&min_match=50
@@ -16,10 +17,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "authentication required" }, { status: 401 });
   }
 
-  const sort = req.nextUrl.searchParams.get("sort") ?? "match_desc";
-  const cuisine = req.nextUrl.searchParams.get("cuisine");
-  const minMatchParam = req.nextUrl.searchParams.get("min_match");
-  const minMatch = minMatchParam ? Number(minMatchParam) : null;
+  const parsedQuery = recipeQuerySchema.safeParse(
+    Object.fromEntries(req.nextUrl.searchParams.entries())
+  );
+  if (!parsedQuery.success) return validationError(parsedQuery.error);
+  const { sort, cuisine, min_match: minMatch } = parsedQuery.data;
 
   // Pull everything needed to compute match % for every recipe in one pass,
   // rather than querying per-recipe — cheap at this catalog size, and keeps
@@ -86,7 +88,7 @@ export async function GET(req: NextRequest) {
     return { ...recipe, match };
   });
 
-  if (minMatch !== null && !Number.isNaN(minMatch)) {
+  if (minMatch !== undefined) {
     results = results.filter((r) => r.match.matchPercent >= minMatch);
   }
 
