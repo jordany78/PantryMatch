@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedClient } from "@/lib/supabase/server";
 import { extractTextFromReceipt, parseLineItems } from "@/lib/ocr/vision";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // POST /api/receipts
 // Multipart form data: { file: <image> }
@@ -12,13 +13,34 @@ import { extractTextFromReceipt, parseLineItems } from "@/lib/ocr/vision";
 // + a separate worker) instead of blocking the request.
 //
 export async function POST(req: NextRequest) {
-  const formData = await req.formData();
-  const file = formData.get("file");
   const { supabase, user } = await getAuthenticatedClient();
 
   if (!user) {
     return NextResponse.json({ error: "authentication required" }, { status: 401 });
   }
+
+  const rateLimit = checkRateLimit(`receipt-upload:${user.id}`);
+  const rateLimitHeaders = {
+    "X-RateLimit-Limit": String(rateLimit.limit),
+    "X-RateLimit-Remaining": String(rateLimit.remaining),
+    "X-RateLimit-Reset": String(Math.ceil(rateLimit.resetAt / 1000)),
+  };
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many receipt uploads. Please try again later." },
+      {
+        status: 429,
+        headers: {
+          ...rateLimitHeaders,
+          "Retry-After": String(Math.max(1, Math.ceil((rateLimit.resetAt - Date.now()) / 1000))),
+        },
+      }
+    );
+  }
+
+  const formData = await req.formData();
+  const file = formData.get("file");
 
   if (!(file instanceof File)) {
     return NextResponse.json(
