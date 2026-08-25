@@ -49,8 +49,11 @@ export const spoonacularSearchQuerySchema = z.object({
 
 export const recipeQuerySchema = z.object({
   sort: z.enum(["match_desc", "match_asc", "prep_time"]).default("match_desc"),
+  q: z.string().trim().optional(),
   cuisine: z.string().trim().optional(),
+  diet: z.string().trim().optional(),
   min_match: z.coerce.number().finite().min(0).max(100).optional(),
+  max_prep: z.coerce.number().finite().positive().optional(),
 });
 
 export const receiptUploadSchema = z.object({

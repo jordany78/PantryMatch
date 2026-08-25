@@ -43,15 +43,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const formData = await req.formData();
-  const file = formData.get("file");
-
-  if (!(file instanceof File)) {
-    return NextResponse.json(
-      { error: "file is required (multipart form field)" },
-      { status: 400 }
-    );
-  }
   const bytes = new Uint8Array(await file.arrayBuffer());
   const storagePath = `${user.id}/${crypto.randomUUID()}-${file.name}`;
 

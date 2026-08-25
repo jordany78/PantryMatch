@@ -144,15 +144,14 @@ export async function GET(req: NextRequest) {
     Object.fromEntries(req.nextUrl.searchParams.entries())
   );
   if (!parsedQuery.success) return validationError(parsedQuery.error);
-  const { sort, cuisine, min_match: minMatch } = parsedQuery.data;
-  const sort = req.nextUrl.searchParams.get("sort") ?? "match_desc";
-  const query = req.nextUrl.searchParams.get("q")?.trim() ?? "";
-  const cuisine = req.nextUrl.searchParams.get("cuisine");
-  const diet = req.nextUrl.searchParams.get("diet");
-  const minMatchParam = req.nextUrl.searchParams.get("min_match");
-  const minMatch = minMatchParam ? Number(minMatchParam) : null;
-  const maxPrepParam = req.nextUrl.searchParams.get("max_prep");
-  const maxPrep = maxPrepParam ? Number(maxPrepParam) : null;
+  const {
+    sort,
+    q: query = "",
+    cuisine,
+    diet,
+    min_match: minMatch,
+    max_prep: maxPrep,
+  } = parsedQuery.data;
   const normalizedCuisine = cuisine?.trim().toLowerCase();
   const normalizedDiet = diet?.trim().toLowerCase();
 
@@ -163,7 +162,7 @@ export async function GET(req: NextRequest) {
   if (query) {
     recipeQuery = recipeQuery.ilike("name", `%${query}%`);
   }
-  if (maxPrep !== null && !Number.isNaN(maxPrep)) {
+  if (maxPrep !== undefined) {
     recipeQuery = recipeQuery.lte("prep_time_minutes", maxPrep);
   }
 
