@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchIngredients } from "@/backend/lib/spoonacular/client";
+import { searchIngredients } from "@/lib/spoonacular/client";
 
 // GET /api/ingredients/spoonacular-search?q=chick
 // Autocomplete against Spoonacular's ingredient catalog: used when a local

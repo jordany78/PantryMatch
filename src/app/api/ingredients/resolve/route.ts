@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/backend/lib/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // POST /api/ingredients/resolve
 // Body: { spoonacularId: number, name: string, category?: string }
