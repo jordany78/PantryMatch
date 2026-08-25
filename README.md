@@ -123,6 +123,7 @@ pantrymatch/
 ### Prerequisites
 - Node.js 20 or newer, including npm
 - A Supabase project (the hosted free tier is sufficient for local development)
+- A Spoonacular API key for importing recipes that are not in the catalog
 - Git
 - A Google Cloud Vision API key only if you want to scan receipts
 
@@ -154,6 +155,11 @@ there is no second server on port 3000.
      and the publishable/anon key into `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 3. Copy the service-role key into `SUPABASE_SERVICE_ROLE_KEY`. Keep this key server-only
      and never expose it in client-side code.
-4. In the Supabase **SQL Editor**, run these files in order:
+4. Add your Spoonacular key from [spoonacular.com/food-api](https://spoonacular.com/food-api)
+     as `SPOONACULAR_API_KEY` in `.env`. It is only used by the server when a recipe search
+     has no local database results.
+5. In the Supabase **SQL Editor**, run these files in order:
      `db/migrations/0001_init.sql`, `db/migrations/0002_rls.sql`,
+     `db/migrations/0005_add_spoonacular_id_to_ingredients.sql`,
+     `db/migrations/0006_add_spoonacular_id_to_recipes.sql`,
      `db/seed/ingredients.sql`, then `db/seed/recipes.sql`.

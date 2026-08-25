@@ -97,9 +97,19 @@ export async function GET(
     name: ingredientNameById.get(ingredientId),
   }));
 
+  const ingredients = (recipeIngredientsRaw ?? []).map((ri: any) => ({
+    ingredientId: ri.ingredient_id,
+    name: ri.ingredients?.name ?? "Unknown ingredient",
+    quantity: ri.quantity,
+    unit: ri.unit,
+    isOptional: ri.is_optional,
+    isMissing: match.missingIngredientIds.includes(ri.ingredient_id),
+  }));
+
   return NextResponse.json({
     recipe,
     matchPercent: match.matchPercent,
+    ingredients,
     matchedIngredients,
     missingIngredients,
   });

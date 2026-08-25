@@ -6,6 +6,24 @@ export interface SpoonacularAutocompleteResult {
   image: string;
 }
 
+export interface SpoonacularRecipeIngredient {
+  id: number;
+  name: string;
+  amount: number;
+  unit: string;
+  original: string;
+}
+
+export interface SpoonacularRecipe {
+  id: number;
+  title: string;
+  readyInMinutes: number | null;
+  cuisines: string[];
+  diets: string[];
+  instructions: string | null;
+  extendedIngredients: SpoonacularRecipeIngredient[];
+}
+
 /**
  * Autocomplete search against Spoonacular's ingredient database.
  * Used to power the "add pantry item" search box.
@@ -37,4 +55,25 @@ export async function searchIngredients(
   }
 
   return res.json();
+}
+
+export async function searchRecipes(query: string, limit = 10): Promise<SpoonacularRecipe[]> {
+  const apiKey = process.env.SPOONACULAR_API_KEY;
+  if (!apiKey) throw new Error("SPOONACULAR_API_KEY is not set");
+
+  const url = new URL(`${SPOONACULAR_BASE_URL}/recipes/complexSearch`);
+  url.searchParams.set("query", query);
+  url.searchParams.set("number", String(limit));
+  url.searchParams.set("addRecipeInformation", "true");
+  url.searchParams.set("fillIngredients", "true");
+  url.searchParams.set("apiKey", apiKey);
+
+  const res = await fetch(url.toString());
+  if (!res.ok) {
+    if (res.status === 402) throw new Error("SPOONACULAR_QUOTA_EXCEEDED");
+    throw new Error(`Spoonacular request failed: ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.results ?? [];
 }
