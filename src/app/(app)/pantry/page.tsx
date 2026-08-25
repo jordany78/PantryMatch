@@ -1,5 +1,6 @@
 import { getAuthenticatedClient } from "@/lib/supabase/server";
 import { AddPantryItem } from "@/components/pantry/add-pantry-item";
+import { PantryList } from "@/components/pantry/pantry-list";
 import Link from "next/link";
 
 type SortOption = "expiry" | "name" | "storage" | "recent";
@@ -16,7 +17,7 @@ export default async function PantryPage({
 }: {
   searchParams: { sort?: string };
 }) {
-  const { supabase, user } = await getAuthenticatedClient();
+  const { supabase } = await getAuthenticatedClient();
 
   const sort = (searchParams.sort as SortOption) ?? "recent";
 
@@ -81,28 +82,9 @@ export default async function PantryPage({
           </p>
         )}
 
-        {items?.map((item) => (
-          <div
-            key={item.id}
-            className="flex items-center justify-between rounded-md border border-white/10 bg-white/[0.02] px-4 py-3"
-          >
-            <div className="flex items-center gap-3">
-              <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: "#6fcf97", boxShadow: "0 0 6px #6fcf97" }}
-              />
-              <div>
-                <p className="text-sm font-medium text-gray-100">
-                  {item.ingredients?.name ?? "Unknown ingredient"}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {item.quantity} {item.unit} · {item.storage_location}
-                  {item.expires_at ? ` · expires ${item.expires_at}` : " · no expiry"}
-                </p>
-              </div>
-            </div>
-          </div>
-        ))}
+        {items && items.length > 0 && (
+          <PantryList items={items} groupByStorage={sort === "storage"} />
+        )}
       </div>
     </div>
   );

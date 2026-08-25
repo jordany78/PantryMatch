@@ -10,7 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // a row other tables (pantry_items, recipe_ingredients) can reference.
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { spoonacularId, name, category } = body;
+  const { spoonacularId, name, category, defaultUnit } = body;
 
   if (!spoonacularId || !name) {
     return NextResponse.json(
@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     .insert({
       name,
       category: category ?? null,
+      default_unit: defaultUnit ?? null,
       spoonacular_id: spoonacularId,
     })
     .select()

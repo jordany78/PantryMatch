@@ -13,6 +13,8 @@ interface SpoonacularResult {
   id: number;
   name: string;
   image: string;
+  aisle?: string;
+  possibleUnits?: string[];
 }
 
 interface SelectedIngredient {
@@ -75,17 +77,25 @@ export function AddPantryItem() {
   }
 
   async function selectSpoonacular(result: SpoonacularResult) {
-    const res = await fetch("/api/ingredients/resolve", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ spoonacularId: result.id, name: result.name }),
-    });
-    const data = await res.json();
-    if (data.ingredient) {
-      setSelected({ id: data.ingredient.id, name: data.ingredient.name });
-      setSpoonacularResults([]);
+  const res = await fetch("/api/ingredients/resolve", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      spoonacularId: result.id,
+      name: result.name,
+      category: result.aisle,
+      defaultUnit: result.possibleUnits?.[0],
+    }),
+  });
+  const data = await res.json();
+  if (data.ingredient) {
+    setSelected({ id: data.ingredient.id, name: data.ingredient.name });
+    setSpoonacularResults([]);
+    if (data.ingredient.default_unit) {
+      setUnit(data.ingredient.default_unit);
     }
   }
+}
 
   function reset() {
     setQuery("");
