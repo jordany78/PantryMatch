@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ingredientResolveSchema, parseJson } from "@/lib/validation";
 
 // POST /api/ingredients/resolve
 // Body: { spoonacularId: number, name: string, category?: string }
@@ -9,15 +10,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // return that. This is the only place a Spoonacular suggestion turns into
 // a row other tables (pantry_items, recipe_ingredients) can reference.
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { spoonacularId, name, category } = body;
-
-  if (!spoonacularId || !name) {
-    return NextResponse.json(
-      { error: "spoonacularId and name are required" },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseJson(req, ingredientResolveSchema);
+  if (parsed instanceof NextResponse) return parsed;
+  const { spoonacularId, name, category } = parsed;
 
   const supabase = createAdminClient();
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { computeMatch } from "@/lib/matching/computeMatch";
+import { recipeQuerySchema, validationError } from "@/lib/validation";
 import { searchRecipes, type SpoonacularRecipe } from "@/lib/spoonacular/client";
 import type { PantryItem, Recipe, RecipeIngredient } from "@/types";
 
@@ -139,14 +140,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "authentication required" }, { status: 401 });
   }
 
-  const sort = req.nextUrl.searchParams.get("sort") ?? "match_desc";
-  const query = req.nextUrl.searchParams.get("q")?.trim() ?? "";
-  const cuisine = req.nextUrl.searchParams.get("cuisine");
-  const diet = req.nextUrl.searchParams.get("diet");
-  const minMatchParam = req.nextUrl.searchParams.get("min_match");
-  const minMatch = minMatchParam ? Number(minMatchParam) : null;
-  const maxPrepParam = req.nextUrl.searchParams.get("max_prep");
-  const maxPrep = maxPrepParam ? Number(maxPrepParam) : null;
+  const parsedQuery = recipeQuerySchema.safeParse(
+    Object.fromEntries(req.nextUrl.searchParams.entries())
+  );
+  if (!parsedQuery.success) return validationError(parsedQuery.error);
+  const {
+    sort,
+    q: query = "",
+    cuisine,
+    diet,
+    min_match: minMatch,
+    max_prep: maxPrep,
+  } = parsedQuery.data;
   const normalizedCuisine = cuisine?.trim().toLowerCase();
   const normalizedDiet = diet?.trim().toLowerCase();
 
@@ -157,7 +162,7 @@ export async function GET(req: NextRequest) {
   if (query) {
     recipeQuery = recipeQuery.ilike("name", `%${query}%`);
   }
-  if (maxPrep !== null && !Number.isNaN(maxPrep)) {
+  if (maxPrep !== undefined) {
     recipeQuery = recipeQuery.lte("prep_time_minutes", maxPrep);
   }
 
@@ -255,7 +260,7 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  if (minMatch !== null && !Number.isNaN(minMatch)) {
+  if (minMatch !== undefined) {
     results = results.filter((r) => r.match.matchPercent >= minMatch);
   }
 

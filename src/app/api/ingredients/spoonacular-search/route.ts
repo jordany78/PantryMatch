@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchIngredients } from "@/lib/spoonacular/client";
+import { spoonacularSearchQuerySchema } from "@/lib/validation";
 
 // GET /api/ingredients/spoonacular-search?q=chick
 // Autocomplete against Spoonacular's ingredient catalog: used when a local
 // search (see /api/ingredients/search) doesn't find a match, so the user
 // can pull in a new ingredient from Spoonacular instead.
 export async function GET(request: NextRequest) {
-  const q = request.nextUrl.searchParams.get("q");
-
-  if (!q || q.trim().length < 2) {
+  const parsed = spoonacularSearchQuerySchema.safeParse({ q: request.nextUrl.searchParams.get("q") ?? undefined });
+  if (!parsed.success) {
     return NextResponse.json({ results: [] });
   }
+  const { q } = parsed.data;
 
   try {
-    const results = await searchIngredients(q.trim());
+    const results = await searchIngredients(q);
     return NextResponse.json({ results });
   } catch (err) {
     if (err instanceof Error && err.message === "SPOONACULAR_QUOTA_EXCEEDED") {
