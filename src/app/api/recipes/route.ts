@@ -7,24 +7,49 @@ import type { PantryItem, Recipe, RecipeIngredient } from "@/types";
 
 async function importRecipe(recipe: SpoonacularRecipe) {
   const admin = createAdminClient();
+  const cuisines = Array.isArray(recipe.cuisines)
+    ? recipe.cuisines.filter((cuisine) => typeof cuisine === "string" && cuisine.trim())
+    : [];
+  const dietaryTags = Array.isArray(recipe.diets)
+    ? recipe.diets.filter((tag) => typeof tag === "string" && tag.trim())
+    : [];
+  const instructions =
+    typeof recipe.instructions === "string" && recipe.instructions.trim()
+      ? recipe.instructions
+      : "Instructions unavailable.";
+
   const { data: existing, error: existingError } = await admin
     .from("recipes")
-    .select("id")
+    .select("id, cuisine, instructions, dietary_tags")
     .eq("spoonacular_id", recipe.id)
     .maybeSingle();
 
   if (existingError) throw existingError;
-  if (existing) return;
+  if (existing) {
+    const updates: Record<string, unknown> = {};
+    if (!existing.cuisine && cuisines.length > 0) updates.cuisine = cuisines.join(", ");
+    if (!existing.instructions || existing.instructions === "Instructions unavailable.") {
+      updates.instructions = instructions;
+    }
+    if ((!existing.dietary_tags || existing.dietary_tags.length === 0) && dietaryTags.length > 0) {
+      updates.dietary_tags = dietaryTags;
+    }
+    if (Object.keys(updates).length > 0) {
+      const { error } = await admin.from("recipes").update(updates).eq("id", existing.id);
+      if (error) throw error;
+    }
+    return;
+  }
 
   const { data: created, error: recipeError } = await admin
     .from("recipes")
     .insert({
       spoonacular_id: recipe.id,
       name: recipe.title,
-      cuisine: recipe.cuisines[0] ?? null,
+      cuisine: cuisines.length > 0 ? cuisines.join(", ") : null,
       prep_time_minutes: recipe.readyInMinutes,
-      instructions: recipe.instructions ?? "Instructions unavailable.",
-      dietary_tags: recipe.diets ?? [],
+      instructions,
+      dietary_tags: dietaryTags,
     })
     .select("id")
     .single();

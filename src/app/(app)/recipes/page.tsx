@@ -7,6 +7,7 @@ type RecipeResult = {
   name: string;
   cuisine: string | null;
   prepTimeMinutes: number | null;
+  instructions: string;
   dietaryTags: string[];
   match: {
     matchPercent: number;
@@ -27,7 +28,6 @@ export default function RecipePage() {
   const [minMatch, setMinMatch] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams({ sort, min_match: String(minMatch) });
@@ -122,10 +122,18 @@ export default function RecipePage() {
         {recipes.map((recipe) => {
           const isHighMatch = recipe.match.matchPercent >= 80;
           return (
-            <article key={recipe.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
+            <article
+              key={recipe.id}
+              className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+            >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-medium text-gray-100">{recipe.name}</h2>
+                  <a
+                    href={`/recipes/${recipe.id}`}
+                    className="text-left text-lg font-medium text-gray-100 underline-offset-4 hover:text-[#6fcf97] hover:underline focus:outline-none focus:ring-2 focus:ring-[#6fcf97]"
+                  >
+                    {recipe.name}
+                  </a>
                   <p className="mt-1 text-xs text-gray-500">
                     {[recipe.cuisine, recipe.prepTimeMinutes ? `${recipe.prepTimeMinutes} min` : null].filter(Boolean).join(" · ") || "Recipe"}
                   </p>
@@ -154,6 +162,7 @@ export default function RecipePage() {
           );
         })}
       </div>
+
     </div>
   );
 }
