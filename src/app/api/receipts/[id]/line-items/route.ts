@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedClient } from "@/lib/supabase/server";
+import { parseJson, receiptLineItemsSchema } from "@/lib/validation";
 
 // PATCH /api/receipts/:id/line-items
 // Body: {
@@ -21,14 +22,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const body = await req.json();
-  const { line_items } = body;
-  if (!Array.isArray(line_items) || line_items.length === 0) {
-    return NextResponse.json(
-      { error: "line_items must be a non-empty array" },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseJson(req, receiptLineItemsSchema);
+  if (parsed instanceof NextResponse) return parsed;
+  const { line_items } = parsed;
 
   const { supabase, user } = await getAuthenticatedClient();
   if (!user) {
@@ -50,13 +46,6 @@ export async function PATCH(
   const insertedPantryItems = [];
 
   for (const item of line_items) {
-    if (!item.id || typeof item.confirmed !== "boolean") {
-      return NextResponse.json(
-        { error: "each line item needs an id and a confirmed boolean" },
-        { status: 400 }
-      );
-    }
-
     const { error: updateError } = await supabase
       .from("receipt_line_items")
       .update({
@@ -73,15 +62,6 @@ export async function PATCH(
     }
 
     if (item.confirmed) {
-      if (!item.ingredient_id || !item.quantity || !item.unit || !item.storage_location) {
-        return NextResponse.json(
-          {
-            error: `line item ${item.id}: confirmed items need ingredient_id, quantity, unit, and storage_location`,
-          },
-          { status: 400 }
-        );
-      }
-
       const { data: pantryItem, error: pantryError } = await supabase
         .from("pantry_items")
         .insert({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedClient } from "@/lib/supabase/server";
+import { pantryItemSchema, parseJson } from "@/lib/validation";
 
 // GET /api/pantry/items
 export async function GET(req: NextRequest) {
@@ -24,26 +25,9 @@ export async function GET(req: NextRequest) {
 // POST /api/pantry/items
 // Body: { ingredient_id, quantity, unit, storage_location, expires_at? }
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { ingredient_id, quantity, unit, storage_location, expires_at } =
-    body;
-
-  if (!ingredient_id || !quantity || !unit || !storage_location) {
-    return NextResponse.json(
-      {
-        error:
-          "ingredient_id, quantity, unit, and storage_location are required",
-      },
-      { status: 400 }
-    );
-  }
-
-  if (!["fridge", "freezer", "pantry"].includes(storage_location)) {
-    return NextResponse.json(
-      { error: "storage_location must be fridge, freezer, or pantry" },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseJson(req, pantryItemSchema);
+  if (parsed instanceof NextResponse) return parsed;
+  const { ingredient_id, quantity, unit, storage_location, expires_at } = parsed;
 
   const { supabase, user } = await getAuthenticatedClient();
   if (!user) {
