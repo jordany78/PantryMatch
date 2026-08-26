@@ -12,7 +12,7 @@ import { ingredientResolveSchema, parseJson } from "@/lib/validation";
 export async function POST(req: NextRequest) {
   const parsed = await parseJson(req, ingredientResolveSchema);
   if (parsed instanceof NextResponse) return parsed;
-  const { spoonacularId, name, category } = parsed;
+  const { spoonacularId, name, category, defaultUnit } = parsed;
 
   const supabase = createAdminClient();
 
@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
     .insert({
       name,
       category: category ?? null,
+      default_unit: defaultUnit ?? null,
       spoonacular_id: spoonacularId,
     })
     .select()

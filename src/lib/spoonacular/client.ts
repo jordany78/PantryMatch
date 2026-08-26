@@ -4,6 +4,8 @@ export interface SpoonacularAutocompleteResult {
   id: number;
   name: string;
   image: string;
+  aisle?: string;
+  possibleUnits?: string[];
 }
 
 export interface SpoonacularRecipeIngredient {
@@ -41,7 +43,7 @@ export async function searchIngredients(
   const url = new URL(`${SPOONACULAR_BASE_URL}/food/ingredients/autocomplete`);
   url.searchParams.set("query", query);
   url.searchParams.set("number", String(limit));
-  url.searchParams.set("metaInformation", "true"); // <-- new: needed to get `id` back
+  url.searchParams.set("metaInformation", "true");
   url.searchParams.set("apiKey", apiKey);
 
   const res = await fetch(url.toString());
