@@ -256,6 +256,10 @@ export async function GET(req: NextRequest) {
           ingredientId,
           name: ingredientNameById.get(ingredientId),
         })),
+        partialIngredients: match.partialIngredientIds.map((ingredientId) => ({
+          ingredientId,
+          name: ingredientNameById.get(ingredientId),
+        })),
       },
     };
   });

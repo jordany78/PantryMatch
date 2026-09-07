@@ -20,6 +20,7 @@ type RecipeDetail = {
     unit: string;
     isOptional: boolean;
     isMissing: boolean;
+    isPartial: boolean;
   }[];
 };
 
@@ -65,6 +66,7 @@ export default function RecipeDetailPage() {
 
   const { recipe, ingredients, matchPercent } = detail;
   const missingCount = ingredients.filter((ingredient) => ingredient.isMissing).length;
+  const partialCount = ingredients.filter((ingredient) => ingredient.isPartial).length;
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -97,15 +99,16 @@ export default function RecipeDetailPage() {
       <section>
         <div className="flex items-baseline justify-between gap-4">
           <h2 className="text-lg font-medium text-gray-100">Ingredients</h2>
-          <span className="text-sm text-gray-500">{missingCount} missing</span>
+          <span className="text-sm text-gray-500">{missingCount} missing{partialCount > 0 ? `, ${partialCount} partial` : ""}</span>
         </div>
         <ul className="mt-3 divide-y divide-white/10 rounded-lg border border-white/10 bg-white/[0.03]">
           {ingredients.map((ingredient) => (
-            <li key={ingredient.ingredientId} className={`flex items-center justify-between gap-4 px-4 py-3 text-sm ${ingredient.isMissing ? "bg-amber-400/10 text-amber-200" : "text-gray-300"}`}>
+            <li key={ingredient.ingredientId} className={`flex items-center justify-between gap-4 px-4 py-3 text-sm ${ingredient.isMissing ? "bg-amber-400/10 text-amber-200" : ingredient.isPartial ? "bg-amber-400/5 text-amber-100" : "text-gray-300"}`}>
               <span>
                 {ingredient.name}
                 {ingredient.isOptional && <span className="ml-2 text-xs text-gray-500">optional</span>}
                 {ingredient.isMissing && <span className="ml-2 text-xs font-medium uppercase tracking-wide text-amber-300">missing</span>}
+                {ingredient.isPartial && <span className="ml-2 text-xs font-medium uppercase tracking-wide text-amber-300">not enough</span>}
               </span>
               <span className="shrink-0 text-gray-500">{ingredient.quantity} {ingredient.unit}</span>
             </li>

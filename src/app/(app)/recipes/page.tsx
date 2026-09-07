@@ -12,6 +12,7 @@ type RecipeResult = {
   match: {
     matchPercent: number;
     missingIngredients: { ingredientId: string; name: string }[];
+    partialIngredients: { ingredientId: string; name: string }[];
   };
 };
 
@@ -155,7 +156,15 @@ export default function RecipePage() {
                   </p>
                 </div>
               )}
-              {isHighMatch && recipe.match.missingIngredients.length === 0 && (
+              {isHighMatch && recipe.match.partialIngredients.length > 0 && (
+                <div className="mt-5 border-t border-white/10 pt-4">
+                  <h3 className="text-xs font-medium uppercase tracking-wide text-gray-400">Not quite enough</h3>
+                  <p className="mt-2 text-sm text-gray-300">
+                    {recipe.match.partialIngredients.map((ingredient) => ingredient.name).join(", ")}
+                  </p>
+                </div>
+              )}
+              {isHighMatch && recipe.match.missingIngredients.length === 0 && recipe.match.partialIngredients.length === 0 && (
                 <p className="mt-5 border-t border-white/10 pt-4 text-sm text-[#6fcf97]">Everything required is in your pantry.</p>
               )}
             </article>
