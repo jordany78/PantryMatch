@@ -112,4 +112,73 @@ describe("computeMatch", () => {
     expect(result.matchPercent).toBe(100);
     expect(result.missingIngredientIds).toEqual([]);
   });
+
+  it("converts weight units like oz to g accurately", () => {
+    // 4 oz = ~113.4g. Recipe requires 100g -> 100% match
+    const recipeIngredients = [
+      ingredient({ ingredientId: "cheese", quantity: 100, unit: "g" }),
+    ];
+    const pantryItems = [pantryItem({ ingredientId: "cheese", quantity: 4, unit: "oz" })];
+
+    const result = computeMatch(recipe, recipeIngredients, pantryItems);
+
+    expect(result.matchedIngredientIds).toEqual(["cheese"]);
+    expect(result.matchPercent).toBe(100);
+  });
+
+  it("calculates partial match when converting g to oz", () => {
+    // Recipe requires 8 oz (~226.8g), pantry has 100g -> 100 / 226.8 = ~44%
+    const recipeIngredients = [
+      ingredient({ ingredientId: "cheese", quantity: 8, unit: "oz" }),
+    ];
+    const pantryItems = [pantryItem({ ingredientId: "cheese", quantity: 100, unit: "g" })];
+
+    const result = computeMatch(recipe, recipeIngredients, pantryItems);
+
+    expect(result.partialIngredientIds).toEqual(["cheese"]);
+    expect(result.matchPercent).toBe(44);
+  });
+
+  it("converts volume units across cups, tbsp, and fl oz", () => {
+    // 1 cup = 16 tbsp. Recipe needs 1 cup, pantry has 16 tbsp -> 100% match
+    const recipeIngredients = [
+      ingredient({ ingredientId: "milk", quantity: 1, unit: "cup" }),
+    ];
+    const pantryItems = [pantryItem({ ingredientId: "milk", quantity: 16, unit: "tbsp" })];
+
+    const result = computeMatch(recipe, recipeIngredients, pantryItems);
+
+    expect(result.matchedIngredientIds).toEqual(["milk"]);
+    expect(result.matchPercent).toBe(100);
+  });
+
+  it("normalizes unit strings with punctuation, casing, and abbreviations", () => {
+    const recipeIngredients = [
+      ingredient({ ingredientId: "olive-oil", quantity: 2, unit: "FL. OZ." }),
+      ingredient({ ingredientId: "butter", quantity: 8, unit: "oz." }),
+    ];
+    const pantryItems = [
+      pantryItem({ ingredientId: "olive-oil", quantity: 4, unit: "tbsp" }), // 4 tbsp = ~2 fl oz
+      pantryItem({ ingredientId: "butter", quantity: 0.5, unit: "lbs" }), // 0.5 lb = 8 oz
+    ];
+
+    const result = computeMatch(recipe, recipeIngredients, pantryItems);
+
+    expect(result.matchedIngredientIds).toEqual(["olive-oil", "butter"]);
+    expect(result.matchPercent).toBe(100);
+  });
+
+  it("compares discrete count units (e.g. cans, cloves, each)", () => {
+    const recipeIngredients = [
+      ingredient({ ingredientId: "garlic", quantity: 4, unit: "cloves" }),
+    ];
+    const pantryItems = [
+      pantryItem({ ingredientId: "garlic", quantity: 2, unit: "cloves" }),
+    ];
+
+    const result = computeMatch(recipe, recipeIngredients, pantryItems);
+
+    expect(result.partialIngredientIds).toEqual(["garlic"]);
+    expect(result.matchPercent).toBe(50);
+  });
 });
